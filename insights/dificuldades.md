@@ -27,7 +27,7 @@ mal configurado poderia excluir servidores em produção de maneira irreversíve
 
 Pior ainda, se um invasor conseguisse acesso à essa instância de teste (supostamente inofensiva), poderia usar essa permissão excessiva para realizar um ataque *DDoS*.
 
-#### Como é possível o StackSets gerenciarem *stacks* de várias contas AWS? Isso não é perigoso?
+#### Como é possível o StackSets gerenciar *stacks* de várias contas AWS? Isso não é perigoso?
 ***Resposta:*** Políticas de confiança explícita ✅  
 
 O StackSets do CloudFormation exige que cada conta destino pré-configure uma *policy* para a conta administradora.  
