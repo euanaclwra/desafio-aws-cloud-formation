@@ -1,0 +1,71 @@
+Description: Implanta um banco de dados Amazon RDS com senha e nome de usuário
+  definidos como parâmetros de entrada.
+
+Parameters:
+  NomeBD:
+    Type: String
+    Default: meubancodedados
+    Description: Nome do banco de dados a ser criado
+  UsuarioBD:
+    Type: String
+    Default: admin
+    Description: Nome de usuário para acesso ao banco de dados
+  SenhaBD:
+    Type: String
+    NoEcho: true # Oculta o valor no console da AWS por segurança
+    Description: Senha para acesso ao banco de dados
+  TipoInstanciaBD:
+    Type: String
+    Default: db.t3.micro
+    Description: Tipo de instância RDS
+  IdVPC:
+    Type: AWS::EC2::VPC::Id
+    Description: ID da VPC em que o banco de dados vai ser implantado
+  IdSubnets:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: Lista de IDs de subnets privadas
+
+Resources:
+  # 1. Recurso de Segurança: Cria um Security Group próprio para o BD
+  BDSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Acesso ao MySQL pela porta 3306
+      VpcId: !Ref IdVPC # Define o ID da rede VPC com base no parâmetro de entrada
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+          CidrIp: 0.0.0.0/0 # Permite acesso geral, deve ser ajustado quando em Produção
+
+  # 2. Recurso de Rede: Cria o grupo de subnets para o RDS
+  BDSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Grupo de subnets para disponibilizar o RDS
+      SubnetIds: !Ref IdSubnets # Usa a lista de IDs passada nos parâmetros de entrada
+
+  # 3. Recurso de Banco de Dados: Cria a Instância RDS (MySQL)
+  MinhaInstanciaBD:
+    Type: AWS::RDS::DBInstance
+    DeletionPolicy: Snapshot # IMPORTANTE! Se a stack for excluída, um snapshot é criado para restauração futura
+    Properties:
+      AllocatedStorage: '20' # GB de armazenamento
+      DBInstanceClass: !Ref TipoInstanciaBD # Define o tipo de instância RDS com base nos parâmetros de entrada
+      DBInstanceIdentifier: !Sub ${NomeBD}-db-inst # Define o ID da instância RDS com base nos parâmetros de entrada
+      Engine: mysql # Usa o MySQL como engine de banco de dados
+      MasterUsername: !Ref UsuarioBD
+      MasterUserPassword: !Ref SenhaBD
+      DBName: !Ref NomeBD
+      VPCSecurityGroups:
+        - !Ref BDSecurityGroup # Aplica nosso firewall
+      DBSubnetGroupName: !Ref BDSubnetGroup # Aplica nosso grupo de subnets
+      BackupRetentionPeriod: 7 # Guarda 7 dias de backup
+
+Outputs:
+  EndpointBD:
+    Description: Retorna o endereço do endpoint do banco de dados RDS
+    Value: !GetAtt MinhaInstanciaBD.Endpoint.Address
+  PortaBD:
+    Description: Retorna a porta para conexão
+    Value: !GetAtt MinhaInstanciaBD.Endpoint.Port
