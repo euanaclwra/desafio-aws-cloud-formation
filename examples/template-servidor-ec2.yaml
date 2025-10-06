@@ -1,0 +1,69 @@
+Description: Implanta um servidor web EC2 em uma nova rede VPC, permitindo
+  tráfego pelas portas 80 (HTTP) e 22 (SSH).
+
+Parameters:
+  NomeKey:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: Nome do par de chaves SSH a ser usado para conexão com a instância EC2
+  IdUltimaAmi:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2
+    Description: ID da AMI mais recente para Amazon Linux 2
+  TipoInstancia:
+    Type: String
+    Default: t2.micro
+    Description: Tipo da instância EC2
+
+Resources:
+  # 1. Recurso de Rede: Cria uma Virtual Private Cloud (VPC)
+  MinhaRedeVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16 # Fornece o bloco de IPs da rede
+      EnableDnsSupport: true # Habilita DNS para comunicação externa/interna
+      EnableDnsHostnames: true # Habilita Hostnames para comunicação com a instância EC2
+
+  # 2. Recurso de Rede: Cria uma Subnet pública
+  MinhaSubredePublica:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref MinhaRedeVPC # Aponta para a VPC que criamos
+      CidrBlock: 10.0.1.0/24 # Fornece uma faixa de IPs dentro do bloco geral de IPs da VPC
+      MapPublicIpOnLaunch: true # Garante que as instâncias da rede recebam um IP público
+
+  # 3. Recurso de Segurança: Cria um Security Group (firewall da nossa rede)
+  MeuSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Permite tráfego SSH (22) e HTTP (80)
+      VpcId: !Ref MinhaRedeVPC # Aponta para a VPC que criamos
+      SecurityGroupIngress:
+        # Define o que pode entrar na instância EC2
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0 # Permite acesso HTTP de qualquer lugar
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0 # Permite acesso SSH de qualquer lugar (em produção, deve ser alterado para o IP do administrador)
+
+  # 4. Recurso de Computação: Cria a instância EC2
+  MeuServidorWeb:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref IdUltimaAmi # Define a AMI da instância com base no parâmetro de entrada
+      InstanceType: !Ref TipoInstancia # Define o tipo da instância com base no parâmetro de entrada
+      KeyName: !Ref NomeKey # Define o nome da chave SSH com base no parâmetro de entrada
+      NetworkInterfaces:
+        # Define a rede da instância e seu comportamento dentro dela
+        - DeviceIndex: '0'
+          AssociatePublicIpAddress: true # Garante que a instância receba um IP público
+          SubnetId: !Ref MinhaSubredePublica # Adiciona a instância na subnet que criamos
+          GroupSet:
+            - !Ref MeuSecurityGroup # Aplica nosso firewall
+
+Outputs:
+  InstanciaURL:
+    Description: Endereço IP público para acessar nossa instância
+    Value: !GetAtt MeuServidorWeb.PublicIp
