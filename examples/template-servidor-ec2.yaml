@@ -57,7 +57,7 @@ Resources:
       KeyName: !Ref NomeKey # Define o nome da chave SSH com base no parâmetro de entrada
       NetworkInterfaces:
         # Define a rede da instância e seu comportamento dentro dela
-        - DeviceIndex: '0'
+        - DeviceIndex: '0' # Índice da instância dentro da rede
           AssociatePublicIpAddress: true # Garante que a instância receba um IP público
           SubnetId: !Ref MinhaSubredePublica # Adiciona a instância na subnet que criamos
           GroupSet:
