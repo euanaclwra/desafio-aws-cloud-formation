@@ -1,0 +1,102 @@
+Description: Implanta um Servidor Web simples atrás de um Application Load Balancer (ALB)
+
+Parameters:
+  NomeKey:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: Chave SSH para acesso à instância EC2
+  TipoInstancia:
+    Type: String
+    Default: t2.micro
+    Description: Tipo da instância EC2
+
+Resources:
+  # 1. Recurso de Rede: Cria uma VPC para a instância
+  VPCServidor:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsHostnames: true
+  
+  # 2. Recurso de Rede: Cria uma Subnet para a instância
+  SubnetPublicaServidor:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VPCServidor
+      CidrBlock: 10.0.1.0/24
+      MapPublicIpOnLaunch: true
+
+  # 3. Recurso de Segurança: Security Group para o Load Balancer (permite tráfego da Internet)
+  SecurityGroupALB:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Permite HTTP de qualquer lugar
+      VpcId: !Ref VPCServidor
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+
+  # 4. Recurso de Segurança: Security Group para o Servidor EC2 (permite tráfego SOMENTE do ALB)
+  SecurityGroupServidor:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Permite HTTP do ALB e SSH
+      VpcId: !Ref VPCServidor
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          SourceSecurityGroupId: !Ref SecurityGroupALB # Permite tráfego HTTP (porta 80) SOMENTE da fonte do ALB
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0 # Permite conexão SSH de qualquer lugar (deve ser ajustado quando em Produção)
+
+  # 5. Recurso de Computação: Instância EC2 (Servidor Web)
+  ServidorEC2:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: /aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2 # AMI da instância
+      InstanceType: !Ref TipoInstancia # Definindo o tipo com base no parâmetro de entrada
+      NomeKey: !Ref NomeKey # Definindo o nome do key pair com base no parâmetro de entrada
+      SubnetId: !Ref SubnetPublicaServidor # Definindo a subnet como a que criamos
+      SecurityGroupIds:
+        - !Ref SecurityGroupServidor # Aplica o Security Group que restringe o acesso ao ALB
+
+  # 5. Recurso de Balanceamento de Carga (ALB)
+  ApplicationLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Scheme: internet-facing
+      Subnets:
+        - !Ref SubnetPublicaServidor # O ALB precisa estar em subnets públicas
+      SecurityGroups:
+        - !Ref SecurityGroupALB # Aplica o Security Group que permite tráfego público
+
+  # 6. Target Group (Grupo de Destino) - Onde o ALB envia o tráfego
+  ALBTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      VpcId: !Ref VPCServidor
+      Port: 80
+      Protocol: HTTP
+      Targets:
+        - Id: !Ref ServidorEC2 # Conecta o Target Group à instância EC2
+          Port: 80
+
+  # 7. Listener (Ouvinte) - O ponto de entrada do tráfego
+  ALBListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: Forward
+          TargetGroupArn: !Ref ALBTargetGroup # Encaminha tráfego para o Target Group
+      LoadBalancerArn: !Ref ApplicationLoadBalancer # Vincula ao Load Balancer
+      Port: 80
+      Protocol: HTTP
+
+Outputs:
+  WebsiteURL:
+    Description: O DNS Name do Load Balancer (ponto de acesso público)
+    Value: !GetAtt ApplicationLoadBalancer.DNSName
