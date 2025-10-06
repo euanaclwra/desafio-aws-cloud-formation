@@ -17,7 +17,7 @@
 ## 📦 Conteúdo do Repositório
 - `/insights`: Anotações e aprendizados
 - `/examples`: Definições de *templates* em YAML
-- `/diagrams`: Representações de *stacks* exportadas do ***Infrastructure Composer*** da AWS 
+- `/images`: Representações de *stacks* exportadas do ***Infrastructure Composer*** da AWS 
 - `/README.MD`: Este arquivo, contendo um resumo do repositório
 
 ## 🔗 Referências
